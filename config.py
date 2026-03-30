@@ -2,9 +2,17 @@ import os
 
 
 class Config:
+    # API keys - Gemini is free tier, Anthropic is optional
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+    # Which vision backend to use: "gemini" (free) or "anthropic"
+    VISION_BACKEND = os.environ.get("VISION_BACKEND", "gemini")
+
     ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
     ANTHROPIC_MAX_TOKENS = 4096
+
+    GEMINI_MODEL = "gemini-2.5-flash"
 
     MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
     ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "bmp", "webp"}

@@ -19,6 +19,13 @@
             Based on standards from audiologieboek.nl and ISO 8253-1.
         </div>
 
+        <!-- Mode Toggle -->
+        <div class="mode-toggle">
+            <button class="mode-btn active" id="mode-upload" onclick="setMode('upload')">Upload Image</button>
+            <button class="mode-btn" id="mode-manual" onclick="setMode('manual')">Manual Entry</button>
+        </div>
+
+        <!-- Upload Mode -->
         <section class="upload-section" id="upload-section">
             <div class="dropzone" id="dropzone">
                 <div class="dropzone-content">
@@ -26,7 +33,7 @@
                         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
                     </svg>
                     <p>Drop audiogram image here or <label for="file-input" class="file-label">browse</label></p>
-                    <p class="hint">Supports JPG, PNG, BMP, WebP (max 10 MB)</p>
+                    <p class="hint">Supports JPG, PNG, BMP, WebP (max 10 MB) &mdash; Requires Anthropic API key</p>
                 </div>
                 <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.bmp,.webp" hidden>
             </div>
@@ -35,6 +42,145 @@
                 <button class="btn btn-secondary" id="clear-btn">Clear</button>
             </div>
             <button class="btn btn-primary" id="analyze-btn" disabled>Analyze Audiogram</button>
+        </section>
+
+        <!-- Manual Entry Mode -->
+        <section class="manual-section" id="manual-section" hidden>
+            <div class="manual-form">
+                <h3>Pure-Tone Audiogram</h3>
+                <p class="hint">Enter threshold values in dB HL. Leave empty if not tested.</p>
+
+                <!-- Right Ear -->
+                <div class="ear-form right-ear-form">
+                    <h4>Right Ear (AD)</h4>
+                    <div class="threshold-grid">
+                        <div class="grid-header">
+                            <span></span>
+                            <span>250</span><span>500</span><span>1000</span><span>2000</span><span>4000</span><span>8000</span>
+                        </div>
+                        <div class="grid-row">
+                            <label>AC</label>
+                            <input type="number" id="r_ac_250" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_ac_500" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_ac_1000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_ac_2000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_ac_4000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_ac_8000" min="-10" max="120" step="5" placeholder="-">
+                        </div>
+                        <div class="grid-row">
+                            <label>AC (masked)</label>
+                            <input type="number" id="r_acm_250" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_acm_500" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_acm_1000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_acm_2000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_acm_4000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_acm_8000" min="-10" max="120" step="5" placeholder="-">
+                        </div>
+                        <div class="grid-row">
+                            <label>BC</label>
+                            <input type="number" id="r_bc_250" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bc_500" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bc_1000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bc_2000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bc_4000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bc_8000" min="-10" max="120" step="5" placeholder="-">
+                        </div>
+                        <div class="grid-row">
+                            <label>BC (masked)</label>
+                            <input type="number" id="r_bcm_250" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bcm_500" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bcm_1000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bcm_2000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bcm_4000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="r_bcm_8000" min="-10" max="120" step="5" placeholder="-">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Left Ear -->
+                <div class="ear-form left-ear-form">
+                    <h4>Left Ear (AS)</h4>
+                    <div class="threshold-grid">
+                        <div class="grid-header">
+                            <span></span>
+                            <span>250</span><span>500</span><span>1000</span><span>2000</span><span>4000</span><span>8000</span>
+                        </div>
+                        <div class="grid-row">
+                            <label>AC</label>
+                            <input type="number" id="l_ac_250" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_ac_500" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_ac_1000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_ac_2000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_ac_4000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_ac_8000" min="-10" max="120" step="5" placeholder="-">
+                        </div>
+                        <div class="grid-row">
+                            <label>AC (masked)</label>
+                            <input type="number" id="l_acm_250" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_acm_500" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_acm_1000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_acm_2000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_acm_4000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_acm_8000" min="-10" max="120" step="5" placeholder="-">
+                        </div>
+                        <div class="grid-row">
+                            <label>BC</label>
+                            <input type="number" id="l_bc_250" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bc_500" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bc_1000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bc_2000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bc_4000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bc_8000" min="-10" max="120" step="5" placeholder="-">
+                        </div>
+                        <div class="grid-row">
+                            <label>BC (masked)</label>
+                            <input type="number" id="l_bcm_250" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bcm_500" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bcm_1000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bcm_2000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bcm_4000" min="-10" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_bcm_8000" min="-10" max="120" step="5" placeholder="-">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Speech Audiometry -->
+                <h3>Speech Audiometry (optional)</h3>
+                <div class="speech-form">
+                    <div class="speech-grid">
+                        <div class="speech-grid-header">
+                            <span></span><span>Right Ear</span><span>Left Ear</span>
+                        </div>
+                        <div class="speech-grid-row">
+                            <label>SRT (dB)</label>
+                            <input type="number" id="r_srt" min="0" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_srt" min="0" max="120" step="5" placeholder="-">
+                        </div>
+                        <div class="speech-grid-row">
+                            <label>Max discrimination (%)</label>
+                            <input type="number" id="r_max_disc" min="0" max="100" step="1" placeholder="-">
+                            <input type="number" id="l_max_disc" min="0" max="100" step="1" placeholder="-">
+                        </div>
+                        <div class="speech-grid-row">
+                            <label>dB at max discrimination</label>
+                            <input type="number" id="r_db_max_disc" min="0" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_db_max_disc" min="0" max="120" step="5" placeholder="-">
+                        </div>
+                        <div class="speech-grid-row">
+                            <label>Discrim. at highest level (%)</label>
+                            <input type="number" id="r_disc_highest" min="0" max="100" step="1" placeholder="-">
+                            <input type="number" id="l_disc_highest" min="0" max="100" step="1" placeholder="-">
+                        </div>
+                        <div class="speech-grid-row">
+                            <label>Highest level (dB)</label>
+                            <input type="number" id="r_db_highest" min="0" max="120" step="5" placeholder="-">
+                            <input type="number" id="l_db_highest" min="0" max="120" step="5" placeholder="-">
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="interpret-btn" onclick="interpretManual()">Interpret</button>
+            </div>
         </section>
 
         <div class="loading" id="loading" hidden>

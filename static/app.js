@@ -7,13 +7,29 @@ const previewImage = document.getElementById('preview-image');
 const clearBtn = document.getElementById('clear-btn');
 const analyzeBtn = document.getElementById('analyze-btn');
 const uploadSection = document.getElementById('upload-section');
+const manualSection = document.getElementById('manual-section');
 const loading = document.getElementById('loading');
 const errorBanner = document.getElementById('error-banner');
 const results = document.getElementById('results');
 
 let selectedFile = null;
+let currentMode = 'upload';
 
-// Drag and drop
+// --- Mode Toggle ---
+function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('mode-upload').classList.toggle('active', mode === 'upload');
+    document.getElementById('mode-manual').classList.toggle('active', mode === 'manual');
+    uploadSection.hidden = mode !== 'upload';
+    manualSection.hidden = mode !== 'manual';
+    results.hidden = true;
+    errorBanner.hidden = true;
+}
+
+// Expose to global for onclick
+window.setMode = setMode;
+
+// --- Drag and Drop ---
 dropzone.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropzone.classList.add('dragover');
@@ -45,7 +61,21 @@ clearBtn.addEventListener('click', () => {
     errorBanner.hidden = true;
 });
 
-analyzeBtn.addEventListener('click', analyze);
+analyzeBtn.addEventListener('click', analyzeImage);
+
+// --- Clipboard paste support ---
+document.addEventListener('paste', (e) => {
+    if (currentMode !== 'upload') return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+        if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) handleFile(file);
+            break;
+        }
+    }
+});
 
 function handleFile(file) {
     const validTypes = ['image/jpeg', 'image/png', 'image/bmp', 'image/webp'];
@@ -69,7 +99,8 @@ function handleFile(file) {
     reader.readAsDataURL(file);
 }
 
-async function analyze() {
+// --- Image Analysis (requires API key) ---
+async function analyzeImage() {
     if (!selectedFile) return;
 
     loading.hidden = false;
@@ -102,6 +133,94 @@ async function analyze() {
     }
 }
 
+// --- Manual Entry Interpretation (no API key needed) ---
+async function interpretManual() {
+    const data = collectManualData();
+
+    loading.hidden = false;
+    results.hidden = true;
+    errorBanner.hidden = true;
+
+    try {
+        const response = await fetch('/api/interpret', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            showError(result.error || 'Interpretation failed');
+            return;
+        }
+
+        renderResults(result);
+    } catch (err) {
+        showError('Network error: ' + err.message);
+    } finally {
+        loading.hidden = true;
+    }
+}
+
+// Expose to global for onclick
+window.interpretManual = interpretManual;
+
+function collectManualData() {
+    const freqs = ['250', '500', '1000', '2000', '4000', '8000'];
+
+    function readRow(prefix) {
+        const obj = {};
+        for (const f of freqs) {
+            const el = document.getElementById(`${prefix}_${f}`);
+            if (el && el.value !== '') {
+                obj[f] = parseFloat(el.value);
+            }
+        }
+        return obj;
+    }
+
+    function readField(id) {
+        const el = document.getElementById(id);
+        if (el && el.value !== '') return parseFloat(el.value);
+        return null;
+    }
+
+    return {
+        pure_tone: {
+            right_ear: {
+                air_conduction: readRow('r_ac'),
+                air_masked: readRow('r_acm'),
+                bone_conduction: readRow('r_bc'),
+                bone_masked: readRow('r_bcm'),
+            },
+            left_ear: {
+                air_conduction: readRow('l_ac'),
+                air_masked: readRow('l_acm'),
+                bone_conduction: readRow('l_bc'),
+                bone_masked: readRow('l_bcm'),
+            },
+        },
+        speech: {
+            right_ear: {
+                srt: readField('r_srt'),
+                max_discrimination: readField('r_max_disc'),
+                db_at_max_discrimination: readField('r_db_max_disc'),
+                discrimination_at_highest_level: readField('r_disc_highest'),
+                db_at_highest_level: readField('r_db_highest'),
+            },
+            left_ear: {
+                srt: readField('l_srt'),
+                max_discrimination: readField('l_max_disc'),
+                db_at_max_discrimination: readField('l_db_max_disc'),
+                discrimination_at_highest_level: readField('l_disc_highest'),
+                db_at_highest_level: readField('l_db_highest'),
+            },
+        },
+    };
+}
+
+// --- Shared rendering ---
 function showError(msg) {
     errorBanner.textContent = msg;
     errorBanner.hidden = false;
@@ -116,14 +235,9 @@ function renderResults(data) {
     badge.textContent = `Extraction confidence: ${conf}`;
     badge.className = `confidence-badge confidence-${conf}`;
 
-    // Ear cards
     renderEarCard('right', data.right);
     renderEarCard('left', data.left);
-
-    // Threshold table
     renderThresholdTable(data);
-
-    // Diagnoses
     renderDiagnoses(data.diagnoses);
 
     // Masking warnings
@@ -134,7 +248,6 @@ function renderResults(data) {
     const maskingSection = document.getElementById('masking-section');
     const maskingList = document.getElementById('masking-warnings');
     if (allMaskingErrors.length > 0) {
-        // Deduplicate
         const unique = [...new Set(allMaskingErrors)];
         maskingList.innerHTML = unique.map(e => `<li>${escapeHtml(e)}</li>`).join('');
         maskingSection.hidden = false;
@@ -161,6 +274,9 @@ function renderResults(data) {
     } else {
         extractionSection.hidden = true;
     }
+
+    // Scroll to results
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderEarCard(side, ear) {
@@ -170,7 +286,6 @@ function renderEarCard(side, ear) {
     document.getElementById(`${side}-type`).textContent = ear.loss_type || '-';
     document.getElementById(`${side}-config`).textContent = ear.configuration || '-';
 
-    // Speech results
     const speechDiv = document.getElementById(`${side}-speech`);
     let speechHtml = '';
 

@@ -13,8 +13,7 @@ import io
 load_dotenv()
 
 from config import Config
-from extraction.claude_extractor import extract_audiogram
-from interpretation.models import AudiogramData, FullInterpretation, EarInterpretation
+from interpretation.models import AudiogramData, FullInterpretation, EarInterpretation, SpeechData, EarThresholds
 from interpretation.indices import calculate_fh, calculate_fhi, calculate_air_bone_gaps
 from interpretation.classifier import classify_degree, classify_type, classify_configuration
 from interpretation.speech import interpret_speech
@@ -34,14 +33,38 @@ MIME_MAP = {
 }
 
 
+def get_extractor():
+    """Get the appropriate extraction function based on config."""
+    backend = Config.VISION_BACKEND
+    if backend == "anthropic" and Config.ANTHROPIC_API_KEY:
+        from extraction.claude_extractor import extract_audiogram_claude
+        return extract_audiogram_claude
+    elif Config.GEMINI_API_KEY:
+        from extraction.gemini_extractor import extract_audiogram_gemini
+        return extract_audiogram_gemini
+    elif Config.ANTHROPIC_API_KEY:
+        from extraction.claude_extractor import extract_audiogram_claude
+        return extract_audiogram_claude
+    else:
+        return None
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    has_vision = bool(Config.GEMINI_API_KEY or Config.ANTHROPIC_API_KEY)
+    return render_template("index.html", has_vision=has_vision)
 
 
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
     """Accept an audiogram image and return full interpretation."""
+    extractor = get_extractor()
+    if extractor is None:
+        return jsonify({
+            "error": "No API key configured. Set GEMINI_API_KEY (free) or ANTHROPIC_API_KEY "
+                     "in environment variables, or use Manual Entry mode."
+        }), 400
+
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
@@ -63,27 +86,100 @@ def analyze():
         mime_type = MIME_MAP.get(ext, "image/jpeg")
 
         # Step 1: Extract data from image
-        data = extract_audiogram(image_bytes, mime_type)
+        data = extractor(image_bytes, mime_type)
 
         # Step 2: Interpret
-        result = interpret(data)
+        result = run_interpretation(data)
 
         return jsonify(_serialize(result, data))
 
-    except anthropic_error_types() as e:
-        return jsonify({"error": f"AI service error: {str(e)}"}), 502
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
 
 
-def anthropic_error_types():
-    """Return anthropic error types for exception handling."""
-    import anthropic
-    return (anthropic.APIError, anthropic.APIConnectionError)
+@app.route("/api/interpret", methods=["POST"])
+def interpret_manual():
+    """Accept manually entered audiogram data and return interpretation.
+
+    No API key needed - pure computation.
+    """
+    try:
+        raw = request.get_json()
+        if not raw:
+            return jsonify({"error": "No data provided"}), 400
+
+        data = _parse_manual_input(raw)
+        result = run_interpretation(data)
+        return jsonify(_serialize(result, data))
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Interpretation failed: {str(e)}"}), 500
 
 
-def interpret(data: AudiogramData) -> FullInterpretation:
+def _parse_manual_input(raw: dict) -> AudiogramData:
+    """Parse manual input JSON into AudiogramData."""
+    data = AudiogramData()
+    data.extraction_confidence = "high"
+    data.extraction_notes = ["Data entered manually"]
+
+    pt = raw.get("pure_tone", {})
+    sp = raw.get("speech", {})
+
+    for side, ear_key in [("right", "right_ear"), ("left", "left_ear")]:
+        ear_raw = pt.get(ear_key, {})
+        ear = EarThresholds(side=side)
+        ear.air_conduction = _parse_manual_thresholds(ear_raw.get("air_conduction", {}))
+        ear.air_masked = _parse_manual_thresholds(ear_raw.get("air_masked", {}))
+        ear.bone_conduction = _parse_manual_thresholds(ear_raw.get("bone_conduction", {}))
+        ear.bone_masked = _parse_manual_thresholds(ear_raw.get("bone_masked", {}))
+
+        if side == "right":
+            data.right_ear = ear
+        else:
+            data.left_ear = ear
+
+    for side, ear_key in [("right", "right_ear"), ("left", "left_ear")]:
+        sp_raw = sp.get(ear_key, {})
+        speech = SpeechData(
+            side=side,
+            srt=_safe_float(sp_raw.get("srt")),
+            max_discrimination=_safe_float(sp_raw.get("max_discrimination")),
+            db_at_max_discrimination=_safe_float(sp_raw.get("db_at_max_discrimination")),
+            discrimination_at_highest_level=_safe_float(sp_raw.get("discrimination_at_highest_level")),
+            db_at_highest_level=_safe_float(sp_raw.get("db_at_highest_level")),
+        )
+        if side == "right":
+            data.right_speech = speech
+        else:
+            data.left_speech = speech
+
+    return data
+
+
+def _parse_manual_thresholds(raw: dict) -> dict[int, float | None]:
+    result = {}
+    for freq_str, value in raw.items():
+        try:
+            freq = int(freq_str)
+            if value is not None and value != "":
+                result[freq] = float(value)
+        except (ValueError, TypeError):
+            continue
+    return result
+
+
+def _safe_float(val) -> float | None:
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def run_interpretation(data: AudiogramData) -> FullInterpretation:
     """Run the full interpretation pipeline on extracted audiogram data."""
     interp = FullInterpretation(
         extraction_confidence=data.extraction_confidence,
@@ -141,7 +237,6 @@ def interpret(data: AudiogramData) -> FullInterpretation:
 
 
 def _get_display_thresholds(ear_data, conduction_type: str) -> dict[int, float | None]:
-    """Get thresholds for display, preferring masked values."""
     result = {}
     if conduction_type == "ac":
         for freq in Config.ALL_FREQUENCIES:
@@ -157,10 +252,8 @@ def _get_display_thresholds(ear_data, conduction_type: str) -> dict[int, float |
 
 
 def _generate_bilateral_notes(data: AudiogramData, interp: FullInterpretation) -> list[str]:
-    """Generate cross-ear observations."""
     notes = []
 
-    # Asymmetry check
     from interpretation.indices import best_ac_threshold
     for freq in [500, 1000, 2000, 4000]:
         r = best_ac_threshold(data.right_ear, freq)
@@ -170,9 +263,8 @@ def _generate_bilateral_notes(data: AudiogramData, interp: FullInterpretation) -
                 f"Significant asymmetry at {freq} Hz: right={r:.0f} dB, left={l:.0f} dB "
                 f"(difference: {abs(r - l):.0f} dB). Consider MRI to rule out retrocochlear pathology."
             )
-            break  # One note is enough
+            break
 
-    # Speech notes
     for side_interp in [interp.right, interp.left]:
         speech_result = interpret_speech(
             data.right_speech if side_interp.side == "right" else data.left_speech,
@@ -184,7 +276,6 @@ def _generate_bilateral_notes(data: AudiogramData, interp: FullInterpretation) -
 
 
 def _serialize(interp: FullInterpretation, data: AudiogramData) -> dict:
-    """Serialize FullInterpretation to JSON-friendly dict."""
     def ear_dict(ear: EarInterpretation) -> dict:
         return {
             "side": ear.side,
@@ -220,7 +311,9 @@ def _serialize(interp: FullInterpretation, data: AudiogramData) -> dict:
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok"})
+    has_vision = bool(Config.GEMINI_API_KEY or Config.ANTHROPIC_API_KEY)
+    return jsonify({"status": "ok", "vision_available": has_vision,
+                    "backend": Config.VISION_BACKEND if has_vision else "none"})
 
 
 if __name__ == "__main__":

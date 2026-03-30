@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audiogram Interpreter</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>Audiogram Interpreter</h1>
+        <p class="subtitle">Automatic audiometric test interpretation</p>
+    </header>
+
+    <main>
+        <div class="disclaimer">
+            This is an assistive screening tool, not a replacement for professional audiological judgment.
+            All results should be verified by a qualified audiologist.
+            Based on standards from audiologieboek.nl and ISO 8253-1.
+        </div>
+
+        <section class="upload-section" id="upload-section">
+            <div class="dropzone" id="dropzone">
+                <div class="dropzone-content">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    <p>Drop audiogram image here or <label for="file-input" class="file-label">browse</label></p>
+                    <p class="hint">Supports JPG, PNG, BMP, WebP (max 10 MB)</p>
+                </div>
+                <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.bmp,.webp" hidden>
+            </div>
+            <div class="preview-container" id="preview-container" hidden>
+                <img id="preview-image" alt="Uploaded audiogram">
+                <button class="btn btn-secondary" id="clear-btn">Clear</button>
+            </div>
+            <button class="btn btn-primary" id="analyze-btn" disabled>Analyze Audiogram</button>
+        </section>
+
+        <div class="loading" id="loading" hidden>
+            <div class="spinner"></div>
+            <p>Analyzing audiogram... This may take a few seconds.</p>
+        </div>
+
+        <div class="error-banner" id="error-banner" hidden></div>
+
+        <section class="results" id="results" hidden>
+            <h2>Results</h2>
+
+            <div class="confidence-badge" id="confidence-badge"></div>
+
+            <!-- Summary Cards -->
+            <div class="ear-cards">
+                <div class="ear-card right-ear" id="right-card">
+                    <h3>Right Ear (AD)</h3>
+                    <div class="indices">
+                        <div class="index-item">
+                            <span class="index-label">FH</span>
+                            <span class="index-value" id="right-fh">-</span>
+                            <span class="index-unit">dB</span>
+                        </div>
+                        <div class="index-item">
+                            <span class="index-label">FHI</span>
+                            <span class="index-value" id="right-fhi">-</span>
+                            <span class="index-unit">dB</span>
+                        </div>
+                    </div>
+                    <div class="classification">
+                        <div class="class-item">
+                            <span class="class-label">Degree</span>
+                            <span class="class-value" id="right-degree">-</span>
+                        </div>
+                        <div class="class-item">
+                            <span class="class-label">Type</span>
+                            <span class="class-value" id="right-type">-</span>
+                        </div>
+                        <div class="class-item">
+                            <span class="class-label">Configuration</span>
+                            <span class="class-value" id="right-config">-</span>
+                        </div>
+                    </div>
+                    <div class="speech-results" id="right-speech"></div>
+                </div>
+
+                <div class="ear-card left-ear" id="left-card">
+                    <h3>Left Ear (AS)</h3>
+                    <div class="indices">
+                        <div class="index-item">
+                            <span class="index-label">FH</span>
+                            <span class="index-value" id="left-fh">-</span>
+                            <span class="index-unit">dB</span>
+                        </div>
+                        <div class="index-item">
+                            <span class="index-label">FHI</span>
+                            <span class="index-value" id="left-fhi">-</span>
+                            <span class="index-unit">dB</span>
+                        </div>
+                    </div>
+                    <div class="classification">
+                        <div class="class-item">
+                            <span class="class-label">Degree</span>
+                            <span class="class-value" id="left-degree">-</span>
+                        </div>
+                        <div class="class-item">
+                            <span class="class-label">Type</span>
+                            <span class="class-value" id="left-type">-</span>
+                        </div>
+                        <div class="class-item">
+                            <span class="class-label">Configuration</span>
+                            <span class="class-value" id="left-config">-</span>
+                        </div>
+                    </div>
+                    <div class="speech-results" id="left-speech"></div>
+                </div>
+            </div>
+
+            <!-- Threshold Data Table -->
+            <div class="data-section">
+                <h3>Threshold Data (dB HL)</h3>
+                <div class="table-wrapper">
+                    <table id="threshold-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>250</th><th>500</th><th>1000</th><th>2000</th><th>4000</th><th>8000</th>
+                            </tr>
+                        </thead>
+                        <tbody id="threshold-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Diagnoses -->
+            <div class="data-section">
+                <h3>Top 3 Probable Diagnoses</h3>
+                <div class="diagnoses-list" id="diagnoses-list"></div>
+            </div>
+
+            <!-- Masking Warnings -->
+            <div class="warnings-section" id="masking-section" hidden>
+                <h3>Masking Warnings</h3>
+                <ul id="masking-warnings"></ul>
+            </div>
+
+            <!-- Bilateral Notes -->
+            <div class="notes-section" id="bilateral-section" hidden>
+                <h3>Additional Notes</h3>
+                <ul id="bilateral-notes"></ul>
+            </div>
+
+            <!-- Extraction Notes -->
+            <div class="extraction-notes" id="extraction-section" hidden>
+                <h3>Extraction Notes</h3>
+                <ul id="extraction-notes"></ul>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Clinical standards based on <a href="https://audiologieboek.nl" target="_blank" rel="noopener">audiologieboek.nl</a> and ISO 8253-1</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

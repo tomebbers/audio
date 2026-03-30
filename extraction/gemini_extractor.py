@@ -1,43 +1,65 @@
-"""Google Gemini Vision API-based audiogram data extraction (free tier)."""
+"""Google Gemini Vision API-based audiogram data extraction (free tier).
+
+Uses the lightweight REST API directly instead of the heavy gRPC SDK
+to minimize memory usage on free hosting tiers.
+"""
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 
-import google.generativeai as genai
-from PIL import Image
-import io
+import httpx
 
 from config import Config
 from extraction.prompt_templates import AUDIOGRAM_EXTRACTION_PROMPT
 from extraction.data_parser import build_audiogram_data, parse_json_response
 
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
 
 def extract_audiogram_gemini(image_bytes: bytes, mime_type: str):
     """Extract audiogram data from an image using Google Gemini Vision (free).
 
-    Args:
-        image_bytes: Raw image bytes.
-        mime_type: MIME type (e.g., "image/jpeg", "image/png").
-
-    Returns:
-        AudiogramData with extracted thresholds and speech data.
+    Uses REST API directly — no heavy SDK dependencies.
     """
-    genai.configure(api_key=Config.GEMINI_API_KEY)
+    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
 
-    model = genai.GenerativeModel(Config.GEMINI_MODEL)
+    url = GEMINI_API_URL.format(model=Config.GEMINI_MODEL)
+    url += f"?key={Config.GEMINI_API_KEY}"
 
-    # Create PIL image for Gemini
-    img = Image.open(io.BytesIO(image_bytes))
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": mime_type,
+                            "data": image_b64,
+                        }
+                    },
+                    {
+                        "text": AUDIOGRAM_EXTRACTION_PROMPT,
+                    },
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.1,
+        },
+    }
 
-    response = model.generate_content(
-        [AUDIOGRAM_EXTRACTION_PROMPT, img],
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.1,
-        ),
-    )
+    response = httpx.post(url, json=payload, timeout=60.0)
+    response.raise_for_status()
 
-    response_text = response.text
+    result = response.json()
+
+    # Extract text from Gemini response
+    try:
+        response_text = result["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError) as e:
+        raise ValueError(f"Unexpected Gemini response structure: {result}") from e
+
     raw_data = parse_json_response(response_text)
     return build_audiogram_data(raw_data)

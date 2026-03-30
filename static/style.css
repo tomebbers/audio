@@ -163,6 +163,53 @@ footer a { color: var(--left-color); }
 .confidence-medium { background: #fef9e7; color: #7d6608; }
 .confidence-low { background: #fdf0ef; color: var(--error-color); }
 
+/* Dossier Report */
+.report-section {
+    background: #fff;
+    border: 2px solid var(--success-color);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.report-header h3 {
+    font-size: 0.95rem;
+    color: var(--success-color);
+}
+
+.btn-copy {
+    background: var(--success-color);
+    color: #fff;
+    padding: 0.35rem 1rem;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-copy:hover { opacity: 0.85; }
+
+.report-text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    padding: 0.75rem;
+    background: #f0faf4;
+    border-radius: 6px;
+    user-select: all;
+}
+
 /* Ear Cards */
 .ear-cards {
     display: grid;

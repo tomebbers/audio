@@ -19,6 +19,7 @@ from interpretation.classifier import classify_degree, classify_type, classify_c
 from interpretation.speech import interpret_speech
 from interpretation.masking import detect_masking_errors
 from interpretation.diagnosis import generate_diagnoses
+from interpretation.report import generate_report
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = Config.MAX_UPLOAD_SIZE
@@ -204,6 +205,9 @@ def run_interpretation(data: AudiogramData) -> FullInterpretation:
 
         # Air-bone gaps
         ear_interp.air_bone_gaps = calculate_air_bone_gaps(ear_data)
+        if ear_interp.air_bone_gaps:
+            gaps = [v for v in ear_interp.air_bone_gaps.values() if v is not None]
+            ear_interp.avg_air_bone_gap = round(sum(gaps) / len(gaps), 1) if gaps else None
 
         # Store thresholds for display (prefer masked)
         ear_interp.ac_thresholds = _get_display_thresholds(ear_data, "ac")
@@ -232,6 +236,9 @@ def run_interpretation(data: AudiogramData) -> FullInterpretation:
 
     # Diagnoses
     interp.diagnoses = generate_diagnoses(interp, data)
+
+    # Dutch clinical report
+    interp.report = generate_report(interp)
 
     return interp
 
@@ -292,10 +299,12 @@ def _serialize(interp: FullInterpretation, data: AudiogramData) -> dict:
             "srt_fh_concordance": ear.srt_fh_concordance,
             "discrimination_rating": ear.discrimination_rating,
             "rollover_index": ear.rollover_index,
+            "avg_air_bone_gap": ear.avg_air_bone_gap,
             "masking_errors": ear.masking_errors,
         }
 
     return {
+        "report": interp.report,
         "right": ear_dict(interp.right),
         "left": ear_dict(interp.left),
         "diagnoses": [

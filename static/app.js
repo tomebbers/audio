@@ -235,6 +235,16 @@ function renderResults(data) {
     badge.textContent = `Extraction confidence: ${conf}`;
     badge.className = `confidence-badge confidence-${conf}`;
 
+    // Dossier report
+    const reportSection = document.getElementById('report-section');
+    const reportText = document.getElementById('report-text');
+    if (data.report) {
+        reportText.textContent = data.report;
+        reportSection.hidden = false;
+    } else {
+        reportSection.hidden = true;
+    }
+
     renderEarCard('right', data.right);
     renderEarCard('left', data.left);
     renderThresholdTable(data);
@@ -360,3 +370,15 @@ function escapeHtml(str) {
     div.textContent = str;
     return div.innerHTML;
 }
+
+// --- Copy report to clipboard ---
+function copyReport() {
+    const text = document.getElementById('report-text').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-report-btn');
+        btn.textContent = 'Gekopieerd!';
+        setTimeout(() => { btn.textContent = 'Kopieer'; }, 2000);
+    });
+}
+
+window.copyReport = copyReport;

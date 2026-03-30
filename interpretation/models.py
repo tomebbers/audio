@@ -58,6 +58,7 @@ class EarInterpretation:
     loss_type: str = "Unable to determine"
     # Per-frequency data
     air_bone_gaps: dict[int, float] = field(default_factory=dict)
+    avg_air_bone_gap: float | None = None
     # Speech
     srt: float | None = None
     max_discrimination: float | None = None
@@ -90,5 +91,6 @@ class FullInterpretation:
     left: EarInterpretation = field(default_factory=lambda: EarInterpretation(side="left"))
     diagnoses: list[Diagnosis] = field(default_factory=list)
     bilateral_notes: list[str] = field(default_factory=list)
+    report: str = ""  # Dutch clinical report for dossier
     extraction_confidence: str = "medium"
     extraction_notes: list[str] = field(default_factory=list)
